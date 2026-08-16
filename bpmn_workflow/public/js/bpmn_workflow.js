@@ -40,8 +40,11 @@ frappe.ui.form.on("BPMN Workflow", {
 			};
 		});
 
-		frm
-			.call("get_generated_bpmn", { step_records: step_records })
+		frappe
+			.call({
+				method: "bpmn_workflow.bpmn_workflow.doctype.bpmn_workflow.bpmn_workflow.get_generated_bpmn",
+				args: { step_records: step_records },
+			})
 			.then(function (r) {
 				if (r.message) {
 					frm.set_value("bpmn_xml", r.message);
