@@ -164,19 +164,33 @@ def generate_bpmn_xml(step_records):
 
 	# Lanes: one lane per role, in order of first appearance
 	if clean_steps:
-		roles = []
+		# A gateway has no role of its own; it sits in the lane of the
+		# function (step) that calls it. Fall back to DEFAULT_ROLE if none.
+		calling_role = {}
 		for step in clean_steps:
-			if step["assigned_to"] not in roles:
-				roles.append(step["assigned_to"])
+			if is_gateway(step["name"]):
+				continue
+			for nxt in step["next_steps"]:
+				if nxt in existing_names and is_gateway(nxt):
+					calling_role.setdefault(nxt, step["assigned_to"])
 
-		# Start/End events belong to the lane of the first/last step
-		start_lane = clean_steps[0]["assigned_to"]
-		end_lane = clean_steps[-1]["assigned_to"]
-
-		# A gateway sits in the lane of its first row's role
 		node_role = {}
 		for step in clean_steps:
-			node_role.setdefault(step["name"], step["assigned_to"])
+			name = step["name"]
+			if is_gateway(name):
+				node_role.setdefault(name, calling_role.get(name) or DEFAULT_ROLE)
+			else:
+				node_role.setdefault(name, step["assigned_to"])
+
+		roles = []
+		for step in clean_steps:
+			role = node_role[step["name"]]
+			if role not in roles:
+				roles.append(role)
+
+		# Start/End events belong to the lane of the first/last step
+		start_lane = node_role[clean_steps[0]["name"]]
+		end_lane = node_role[clean_steps[-1]["name"]]
 
 		lane_set = ET.SubElement(process, "{" + BPMN_NS + "}laneSet")
 		lane_set.set("id", "LaneSet_1")

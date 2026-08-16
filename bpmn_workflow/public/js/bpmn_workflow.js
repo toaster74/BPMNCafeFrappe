@@ -82,9 +82,17 @@ frappe.ui.form.on("BPMN Workflow Step", {
 		var row = frappe.get_doc(cdt, cdn);
 		var step_type = (row.step_type || "Funktion").trim();
 		var bedingung = (row.bedingung || "").trim();
+		var assigned_to = (row.assigned_to || "").trim();
 		if (step_type === "Abzweigung" && !bedingung) {
 			frappe.throw(
 				__("Step '{0}': a condition (Bedingung) is required for a gateway (Abzweigung).").format(
+					row.step_name
+				)
+			);
+		}
+		if (step_type === "Abzweigung" && assigned_to) {
+			frappe.throw(
+				__("Step '{0}': a gateway (Abzweigung) must not have a role (Rolle).").format(
 					row.step_name
 				)
 			);

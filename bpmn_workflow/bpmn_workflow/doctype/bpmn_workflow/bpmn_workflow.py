@@ -46,17 +46,25 @@ def _validate_steps(steps):
 	"""Plausibility check for each step row.
 
 	- A step of type "Abzweigung" (gateway) must have a condition.
+	- A step of type "Abzweigung" (gateway) must NOT have a role.
 	- A step of type "Funktion" (task) must NOT have a condition.
 	"""
 	for step in steps:
 		name = (step.step_name or "").strip()
 		step_type = (step.step_type or "Funktion").strip()
 		bedingung = (step.bedingung or "").strip()
+		assigned_to = (step.assigned_to or "").strip()
 		if step_type == "Abzweigung" and not bedingung:
 			frappe.throw(
 				frappe._("Step '{0}': a condition (Bedingung) is required for a gateway (Abzweigung).").format(
 					name
 				)
+			)
+		if step_type == "Abzweigung" and assigned_to:
+			frappe.throw(
+				frappe._(
+					"Step '{0}': a gateway (Abzweigung) must not have a role (Rolle)."
+				).format(name)
 			)
 		if step_type == "Funktion" and bedingung:
 			frappe.throw(

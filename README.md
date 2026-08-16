@@ -4,22 +4,30 @@ Frappe-App zum Erstellen, Bearbeiten und Auflisten von Workflows, die als
 **BPMN 2.0-Modelle** gespeichert und mit **bpmn-js** (Open Source, MIT) grafisch
 dargestellt werden.
 
-## Funktionsumfang
+## Dokumentation
 
-- **Doctype `BPMN Workflow`** — ein Workflow mit Name und Beschreibung
-- **Kindtabelle `BPMN Workflow Step`** — pro Schritt wird abgefragt:
-  - **Step Name**: Bezeichnung des Schritts
-  - **Next Step(s)**: welche Schritte danach folgen (kommagetrennt)
-  - **Assigned To**: welche Person/User den Schritt ausführt (Link zu `User`)
-  - **Tool**: mit welchem Tool der Schritt umgesetzt wird
-- Beim Speichern wird automatisch ein **BPMN 2.0-XML** (inkl. Diagramm-Layout/BPMNDI)
-  aus den Schritten erzeugt und im Feld `bpmn_xml` abgelegt.
-- Das BPMN-Modell wird direkt im Formular mit **bpmn-js** gerendert.
-- Standard-Listenansicht für alle Workflows (autoname = Workflow-Name).
+- **`docs/ANFORDERUNGEN.md`** – vollständige Modulbeschreibung (Datenmodell,
+  Regeln, Generator, API, Architektur) zur Rekonstruktion.
+- **`docs/BENUTZERDOKUMENTATION.md`** – Schritt-für-Schritt-Anleitung zum
+  Anlegen eines Workflows.
+
+## Funktionsumfang (Überblick)
+
+- **Doctype `BPMN Workflow`** – Workflow mit Metadaten (Autor, Prozess-Owner,
+  Designer, Inkrafttreten).
+- **Kindtabelle `BPMN Workflow Step`** – Schritte mit Typ, Folgeschritten,
+  Bedingung, Rolle, Tool.
+- **Doctype `BPMN Rolle`** – Rollen, jeweils als Swimlane im Diagramm.
+- Automatische Generierung eines **BPMN 2.0-XML** (semantisches Modell) aus den
+  Schritten; Layout wird clientseitig von **bpmn-auto-layout** berechnet.
+- Grafische Anzeige im Formular (bpmn-js), inkl. Swimlanes und
+  Abzweigungen (exklusive Gateways mit beschrifteten Bedingungen).
+- **PDF-Export** des gerenderten Diagramms (A4, Querformat).
+- Plausibilitätsprüfung der Schritt-Eingaben (Client + Server).
 
 ## Installation
 
-Voraussetzung: ein laufendes Frappe-Bench (Frappe >= v14, getestet mit v14/v15).
+Voraussetzung: ein laufendes Frappe-Bench (getestet mit v15).
 
 ```bash
 # 1. App ins Bench holen (lokaler Pfad)
@@ -28,56 +36,61 @@ bench get-app /pfad/zu/diesem/repo
 # 2. Installieren
 bench --site dein-site install-app bpmn_workflow
 
-# 3. Entwicklungsserver neu starten / Assets bauen
-bench build
+# 3. Nach jedem Pull / Code-Änderungen:
 bench --site dein-site migrate
+bench build
 ```
 
-## Nutzung
+## Nutzung (Kurzfassung)
 
-1. Im Workspace-Modul **BPMN Workflow** öffnen.
-2. Neuen **BPMN Workflow** anlegen.
-3. Unter **Workflow Steps** die Schritte eintragen. Beispiel:
+1. **BPMN Rolle** anlegen (Rollenname + Beschreibung).
+2. **BPMN Workflow** neu anlegen: Name, Verantwortliche, Inkrafttreten.
+3. **Workflow Steps** eintragen: Step Name, Typ (`Funktion`/`Abzweigung`),
+   Next Step(s) (kommagetrennt), bei Abzweigung eine Bedingung, Rolle + Tool.
+4. **Generate BPMN Model** klicken – das Diagramm erscheint unter
+   **BPMN Model → BPMN Preview**, das XML darunter.
+5. Speichern; optional **PDF Export**.
 
-   | Step Name        | Next Step(s)      | Assigned To | Tool     |
-   |------------------|-------------------|-------------|----------|
-   | Anfrage prüfen   | Angebot erstellen | max@mail.de | ERPNext  |
-   | Angebot erstellen| Angebot senden    | anna@mail.de| ERPNext  |
-   | Angebot senden   |                   | tom@mail.de | Mail     |
-
-4. **Generate BPMN Model** klicken oder einfach speichern — das BPMN-XML wird
-   erzeugt und das Diagramm unter **BPMN Model → BPMN Preview** angezeigt.
-5. Im Bearbeiten-Modus der Tabelle die Schritte nach Belieben ändern und erneut
-   generieren.
-
-Schritte ohne Vorgänger werden automatisch mit dem **Start-Event** verbunden,
-Schritte ohne Nachfolger mit dem **End-Event**. Verzweigungen und Zusammenführungen
-(ein Schritt → mehrere, mehrere → ein Schritt) werden unterstützt.
+Ausführlich: `docs/BENUTZERDOKUMENTATION.md`.
 
 ## Technische Details
 
 - **BPMN-Erzeugung**: `bpmn_workflow/bpmn/__init__.py` erzeugt aus den flachen
-  Schritt-Daten ein vollständiges BPMN 2.0-XML inklusive BPMNDI (Auto-Layout,
-  links-nach-rechts). Jeder Schritt wird als `userTask` mit `documentation`
-  (Ausführender / Tool) abgebildet.
-- **Visualisierung**: `bpmn_workflow/public/js/bpmn_workflow.js` lädt bpmn-js
-  (Viewer) und rendert das XML im Formular.
+  Schritt-Daten ein semantisches BPMN 2.0-Modell (ohne BPMNDI). Jeder
+  `Funktion`-Schritt wird ein `userTask` (mit `documentation` Rolle/Tool),
+  zusammengehörige `Abzweigung`-Zeilen werden ein `exclusiveGateway` mit
+  bedingten Sequenzflüssen.
+- **Visualisierung**: `bpmn_workflow/public/js/bpmn_workflow.js` lädt
+  bpmn-auto-layout + bpmn-js (Viewer) und rendert das XML im Formular.
 - **Vendored Libraries**: siehe `bpmn_workflow/public/VENDORED_LICENSES.md`.
 
 ## Aufbau
 
 ```
-code/
-├── pyproject.toml / setup.py
-├── bpmn_workflow/
-│   ├── hooks.py
-│   ├── config/            # Desktop-/Docs-Metadaten
-│   ├── bpmn/              # BPMN-XML-Generator (Python)
-│   ├── doctype/
-│   │   ├── bpmn_workflow/         # Haupt-DocType + Controller
-│   │   └── bpmn_workflow_step/    # Kind-DocType (Schritt)
-│   └── public/
-│       ├── js/bpmn_workflow.js    # Client-Logik
-│       ├── js/bpmn-js/            # bpmn-js (vendored)
-│       └── css/                   # bpmn-js CSS (vendored)
+bpmn_workflow/
+├── hooks.py                          # App-Metadaten, doctype_js, Modul
+├── modules.txt                       # Modul „BPMN Workflow“
+├── bpmn/                             # BPMN-XML-Generator (Python)
+├── bpmn_workflow/                    # Modulordner (Name = Modul)
+│   ├── config/                       # Workspace-Metadaten
+│   └── doctype/
+│       ├── bpmn_workflow/            # Haupt-DocType + Controller
+│       ├── bpmn_workflow_step/       # Kind-DocType (Schritt)
+│       └── bpmn_rolle/               # DocType Rolle
+└── public/
+    ├── js/
+    │   ├── bpmn_workflow.js          # Client-Logik
+    │   ├── bpmn-auto-layout/         # vendored (esbuild-Bundle)
+    │   ├── bpmn-js/                  # vendored (Viewer-Bundle)
+    │   └── bpmn-pdf/                 # vendored (jsPDF + svg2pdf Bundle)
+    ├── css/vendor/                   # bpmn-js CSS (vendored)
+    └── VENDORED_LICENSES.md
+docs/
+├── ANFORDERUNGEN.md                  # Modul-/Anforderungsdokumentation
+└── BENUTZERDOKUMENTATION.md          # Benutzeranleitung
 ```
+
+## Entwicklungshinweis
+
+Neue Funktionen müssen in `docs/ANFORDERUNGEN.md` und
+`docs/BENUTZERDOKUMENTATION.md` dokumentiert werden (siehe `AGENTS.md`).
