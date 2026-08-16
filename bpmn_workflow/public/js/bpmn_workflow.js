@@ -10,6 +10,8 @@ var BPMN_ASSETS = [
 	"/assets/bpmn_workflow/js/bpmn-js/bpmn-viewer.production.min.js",
 ];
 
+var PDF_ASSETS = ["/assets/bpmn_workflow/js/bpmn-pdf/bpmn-pdf.min.js"];
+
 frappe.ui.form.on("BPMN Workflow", {
 	refresh: function (frm) {
 		load_bpmn_assets(function () {
@@ -56,6 +58,22 @@ frappe.ui.form.on("BPMN Workflow", {
 					}
 				}
 			});
+	},
+
+	// Triggered by the "PDF Export" button (field option "pdf_export").
+	// Exports the currently rendered BPMN diagram as a PDF download.
+	pdf_export: function (frm) {
+		if (!frm.bpmn_viewer) {
+			frappe.msgprint({
+				title: __("No Diagram"),
+				message: __("Generate the BPMN diagram first."),
+				indicator: "orange",
+			});
+			return;
+		}
+		frappe.require(PDF_ASSETS).then(function () {
+			export_bpmn_pdf(frm);
+		});
 	},
 });
 
@@ -123,6 +141,71 @@ function render_viewer(frm, xml) {
 			frappe.msgprint({
 				title: __("Error"),
 				message: __("Could not render the BPMN diagram."),
+				indicator: "red",
+			});
+		});
+}
+
+function export_bpmn_pdf(frm) {
+	var viewer = frm.bpmn_viewer;
+	if (!viewer) return;
+
+	frappe.show_alert({ message: __("Preparing PDF..."), indicator: "blue" });
+
+	viewer
+		.saveSVG()
+		.then(function (result) {
+			var svg = result.svg;
+			var container = document.createElement("div");
+			container.style.position = "absolute";
+			container.style.left = "-9999px";
+			container.style.top = "0";
+			container.style.width = "100px";
+			container.style.height = "100px";
+			document.body.appendChild(container);
+			container.innerHTML = svg;
+
+			var svgElement = container.querySelector("svg");
+			var bounds = svgElement.getBoundingClientRect();
+			var svgWidth = bounds.width || 800;
+			var svgHeight = bounds.height || 600;
+
+			var pdf = new window.BPMNPDF.jsPDF({
+				orientation: "landscape",
+				unit: "pt",
+				format: "a4",
+			});
+
+			var pageWidth = pdf.internal.pageSize.getWidth();
+			var pageHeight = pdf.internal.pageSize.getHeight();
+			var margin = 30;
+
+			var scale = Math.min(
+				(pageWidth - margin * 2) / svgWidth,
+				(pageHeight - margin * 2) / svgHeight
+			);
+
+			var x = (pageWidth - svgWidth * scale) / 2;
+			var y = (pageHeight - svgHeight * scale) / 2;
+
+			window.BPMNPDF.svg2pdf(svgElement, pdf, {
+				x: x,
+				y: y,
+				width: svgWidth * scale,
+				height: svgHeight * scale,
+			});
+
+			var filename = (frm.doc.workflow_name || "bpmn-workflow") + ".pdf";
+			pdf.save(filename);
+
+			document.body.removeChild(container);
+			frappe.show_alert({ message: __("PDF exported."), indicator: "green" });
+		})
+		.catch(function (err) {
+			console.error(err);
+			frappe.msgprint({
+				title: __("Error"),
+				message: __("Could not export the PDF."),
 				indicator: "red",
 			});
 		});
