@@ -173,6 +173,24 @@ Namen `step_type == "Abzweigung"` hat.
 | `export_bpmn_pdf` | `viewer.saveSVG()` → `svg_to_canvas` → jsPDF A4 Querformat, Bild zentriert eingebettet |
 | `svg_to_canvas` | setzt `width`/`height` aus `viewBox` (falls fehlend), rastert SVG 2× auf Canvas |
 
+**Viewer-Werkzeugleiste** (Zoom & Vollbild): `render_viewer` baut eine
+Toolbar oben rechts im Preview-Container mit vier Buttons:
+
+- **Zoom Out (−)** → `canvas.zoom(0.8)`
+- **Zoom In (+)** → `canvas.zoom(1.25)`
+- **Fit** → `canvas.zoom("fit-viewport", "auto")`
+- **Vollbild (⛶)** → Fullscreen-API auf den Preview-Container
+  (`container.requestFullscreen()`, Fallback `webkitRequestFullscreen`)
+
+Die CSS-Basis dafür wird einmalig per `inject_viewer_css()` eingefügt
+(`<style id="bpmn-viewer-css">`, absolute Toolbar + `.bpmn-canvas`-Layer).
+`build_toolbar(frm, container)` erzeugt die Buttons und verdrahtet die Klicks;
+`toggle_fullscreen(container)` schaltet Vollbild an/aus. Beim
+`fullscreenchange`-Event wird nach 100 ms automatisch
+`canvas.zoom("fit-viewport")` aufgerufen, damit das Diagramm nach der
+Größenänderung passt. Die Referenzen `active_viewer` / `active_container`
+dienen diesem Re-Fit.
+
 **Asserts:** Der PDF-Export setzt voraus, dass ein Diagramm gerendert wurde
 (`frm.bpmn_viewer` gesetzt). Ein leerer `bpmn_xml` zeigt im Preview-Container
 einen Hinweistext.

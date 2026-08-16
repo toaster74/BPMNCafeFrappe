@@ -155,18 +155,27 @@ function render_viewer(frm, xml) {
 	var container = document.getElementById("bpmn-preview-container");
 	container.innerHTML = "";
 
+	inject_viewer_css();
+	build_toolbar(frm, container);
+
+	var canvas = document.createElement("div");
+	canvas.className = "bpmn-canvas";
+	container.appendChild(canvas);
+
 	var viewer = new BpmnJS({
-		container: container,
+		container: canvas,
 		height: "100%",
 	});
 
 	frm.bpmn_viewer = viewer;
+	active_viewer = viewer;
+	active_container = container;
 
 	return viewer
 		.importXML(xml)
 		.then(function () {
-			var canvas = viewer.get("canvas");
-			canvas.zoom("fit-viewport", "auto");
+			var canvas_view = viewer.get("canvas");
+			canvas_view.zoom("fit-viewport", "auto");
 		})
 		.catch(function (err) {
 			console.error(err);
@@ -177,6 +186,80 @@ function render_viewer(frm, xml) {
 			});
 		});
 }
+
+var active_viewer = null;
+var active_container = null;
+
+function inject_viewer_css() {
+	if (document.getElementById("bpmn-viewer-css")) return;
+	var style = document.createElement("style");
+	style.id = "bpmn-viewer-css";
+	style.textContent = [
+		"#bpmn-preview-container{position:relative;}",
+		"#bpmn-preview-container .bpmn-canvas{position:absolute;top:0;left:0;right:0;bottom:0;}",
+		"#bpmn-preview-container .bpmn-toolbar{position:absolute;top:8px;right:8px;z-index:100;display:flex;gap:4px;padding:4px;background:rgba(255,255,255,.92);border:1px solid var(--border-color);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);}",
+		"#bpmn-preview-container .bpmn-btn{border:1px solid var(--border-color);background:#fff;color:inherit;border-radius:4px;cursor:pointer;padding:2px 8px;font-size:13px;line-height:1.5;}",
+		"#bpmn-preview-container .bpmn-btn:hover{background:var(--control-bg);}",
+	].join("\n");
+	document.head.appendChild(style);
+}
+
+function build_toolbar(frm, container) {
+	var toolbar = document.createElement("div");
+	toolbar.className = "bpmn-toolbar";
+	toolbar.innerHTML =
+		'<button type="button" class="bpmn-btn" data-action="zoom-out" title="Zoom Out">-</button>' +
+		'<button type="button" class="bpmn-btn" data-action="zoom-in" title="Zoom In">+</button>' +
+		'<button type="button" class="bpmn-btn" data-action="fit" title="Fit to Screen">Fit</button>' +
+		'<button type="button" class="bpmn-btn" data-action="fullscreen" title="Toggle Fullscreen">&#10530;</button>';
+	container.appendChild(toolbar);
+
+	toolbar.addEventListener("click", function (event) {
+		var btn = event.target.closest(".bpmn-btn");
+		if (!btn || !frm.bpmn_viewer) return;
+		var canvas = frm.bpmn_viewer.get("canvas");
+		switch (btn.dataset.action) {
+			case "zoom-in":
+				canvas.zoom(1.25);
+				break;
+			case "zoom-out":
+				canvas.zoom(0.8);
+				break;
+			case "fit":
+				canvas.zoom("fit-viewport", "auto");
+				break;
+			case "fullscreen":
+				toggle_fullscreen(container);
+				break;
+		}
+	});
+}
+
+function toggle_fullscreen(container) {
+	var doc = container.ownerDocument;
+	if (!doc.fullscreenElement) {
+		if (container.requestFullscreen) {
+			container.requestFullscreen();
+		} else if (container.webkitRequestFullscreen) {
+			container.webkitRequestFullscreen();
+		}
+	} else {
+		if (doc.exitFullscreen) {
+			doc.exitFullscreen();
+		} else if (doc.webkitExitFullscreen) {
+			doc.webkitExitFullscreen();
+		}
+	}
+}
+
+document.addEventListener("fullscreenchange", function () {
+	// Re-fit after the fullscreen container has been resized.
+	if (document.fullscreenElement && active_viewer) {
+		setTimeout(function () {
+			active_viewer.get("canvas").zoom("fit-viewport", "auto");
+		}, 100);
+	}
+});
 
 function export_bpmn_pdf(frm) {
 	var viewer = frm.bpmn_viewer;
