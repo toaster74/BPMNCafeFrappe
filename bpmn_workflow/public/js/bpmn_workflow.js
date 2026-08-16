@@ -39,6 +39,7 @@ frappe.ui.form.on("BPMN Workflow", {
 			return {
 				name: step.step_name,
 				next_steps: next_steps,
+				bedingung: step.bedingung,
 				assigned_to: step.assigned_to,
 				tool: step.tool,
 			};

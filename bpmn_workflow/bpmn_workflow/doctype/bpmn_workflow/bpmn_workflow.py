@@ -32,6 +32,7 @@ def _step_records(workflow):
 			{
 				"name": step.step_name,
 				"next_steps": _split_next_steps(step.next_step),
+				"bedingung": step.bedingung,
 				"assigned_to": step.assigned_to,
 				"tool": step.tool,
 			}
