@@ -130,6 +130,8 @@ function render_viewer(frm, xml) {
 		height: "100%",
 	});
 
+	frm.bpmn_viewer = viewer;
+
 	return viewer
 		.importXML(xml)
 		.then(function () {
