@@ -157,21 +157,9 @@ function export_bpmn_pdf(frm) {
 	viewer
 		.saveSVG()
 		.then(function (result) {
-			var svg = result.svg;
-			var container = document.createElement("div");
-			container.style.position = "absolute";
-			container.style.left = "-9999px";
-			container.style.top = "0";
-			container.style.width = "100px";
-			container.style.height = "100px";
-			document.body.appendChild(container);
-			container.innerHTML = svg;
-
-			var svgElement = container.querySelector("svg");
-			var bounds = svgElement.getBoundingClientRect();
-			var svgWidth = bounds.width || 800;
-			var svgHeight = bounds.height || 600;
-
+			return svg_to_canvas(result.svg);
+		})
+		.then(function (canvas) {
 			var pdf = new window.BPMNPDF.jsPDF({
 				orientation: "landscape",
 				unit: "pt",
@@ -182,25 +170,24 @@ function export_bpmn_pdf(frm) {
 			var pageHeight = pdf.internal.pageSize.getHeight();
 			var margin = 30;
 
+			var imgWidth = canvas.width;
+			var imgHeight = canvas.height;
+
 			var scale = Math.min(
-				(pageWidth - margin * 2) / svgWidth,
-				(pageHeight - margin * 2) / svgHeight
+				(pageWidth - margin * 2) / imgWidth,
+				(pageHeight - margin * 2) / imgHeight
 			);
 
-			var x = (pageWidth - svgWidth * scale) / 2;
-			var y = (pageHeight - svgHeight * scale) / 2;
+			var w = imgWidth * scale;
+			var h = imgHeight * scale;
+			var x = (pageWidth - w) / 2;
+			var y = (pageHeight - h) / 2;
 
-			window.BPMNPDF.svg2pdf(svgElement, pdf, {
-				x: x,
-				y: y,
-				width: svgWidth * scale,
-				height: svgHeight * scale,
-			});
+			pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, w, h);
 
 			var filename = (frm.doc.workflow_name || "bpmn-workflow") + ".pdf";
 			pdf.save(filename);
 
-			document.body.removeChild(container);
 			frappe.show_alert({ message: __("PDF exported."), indicator: "green" });
 		})
 		.catch(function (err) {
@@ -211,4 +198,42 @@ function export_bpmn_pdf(frm) {
 				indicator: "red",
 			});
 		});
+}
+
+function svg_to_canvas(svgString) {
+	return new Promise(function (resolve, reject) {
+		var svg = new DOMParser().parseFromString(svgString, "image/svg+xml").documentElement;
+
+		// Browsers use a default size for SVGs without explicit width/height.
+		// Derive the size from the viewBox so the raster is not empty/1px.
+		var viewBox = svg.getAttribute("viewBox");
+		if (viewBox) {
+			var parts = viewBox.split(/[\s,]+/).map(Number);
+			if (!svg.getAttribute("width")) {
+				svg.setAttribute("width", parts[2]);
+			}
+			if (!svg.getAttribute("height")) {
+				svg.setAttribute("height", parts[3]);
+			}
+		}
+
+		var dataUrl =
+			"data:image/svg+xml;charset=utf-8," +
+			encodeURIComponent(new XMLSerializer().serializeToString(svg));
+
+		var image = new Image();
+		image.onload = function () {
+			var renderScale = 2;
+			var canvas = document.createElement("canvas");
+			canvas.width = image.width * renderScale;
+			canvas.height = image.height * renderScale;
+			var ctx = canvas.getContext("2d");
+			ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+			resolve(canvas);
+		};
+		image.onerror = function () {
+			reject(new Error("Could not rasterize the BPMN diagram."));
+		};
+		image.src = dataUrl;
+	});
 }
