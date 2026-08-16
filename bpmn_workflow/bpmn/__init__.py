@@ -6,11 +6,12 @@ of workflow steps.
 Each step is described by:
     - name        (str)   step name, used as a unique reference
     - next_steps  (list)  names of the steps that follow this one
-    - assigned_to (str)   user who executes the step (stored in documentation)
+    - assigned_to (str)   BPMN role that executes the step; every role gets
+                          its own horizontal swimlane (lane) in the diagram
     - tool        (str)   tool used to implement the step (stored in documentation)
 
-The generator produces a fully layouted diagram (layered, left-to-right) so
-that bpmn-js can render it without a manual layout pass.
+The generator produces a fully layouted diagram (layered, left-to-right, one
+swimlane per role) so that bpmn-js can render it without a manual layout pass.
 """
 import re
 import xml.etree.ElementTree as ET
@@ -29,7 +30,11 @@ EVENT_H = 40
 COL_W = 240
 ROW_H = 160
 BASE_X = 120
-BASE_Y = 160
+LANE_HEADER_W = 100
+LANE_PAD_TOP = 30
+LANE_PAD_BOTTOM = 30
+LANE_END_MARGIN = 80
+DEFAULT_ROLE = "Unassigned"
 
 
 def _register_namespaces():
@@ -78,19 +83,11 @@ def _layer_assignments(step_names, next_map, pred_map):
 	return layer_of
 
 
-def _position_nodes(nodes):
-	"""Group nodes by layer and assign x/y coordinates. Mutates nodes in place."""
+def _group_by_layer(nodes):
 	by_layer = {}
 	for node in nodes:
 		by_layer.setdefault(node["layer"], []).append(node)
-	for layer, layer_nodes in by_layer.items():
-		count = len(layer_nodes)
-		for index, node in enumerate(layer_nodes):
-			x_center = BASE_X + layer * COL_W
-			y_center = BASE_Y + (index - (count - 1) / 2.0) * ROW_H
-			node["x"] = x_center - node["w"] / 2.0
-			node["y"] = y_center - node["h"] / 2.0
-	return nodes
+	return by_layer
 
 
 def generate_bpmn_xml(step_records):
@@ -107,7 +104,7 @@ def generate_bpmn_xml(step_records):
 			{
 				"name": name,
 				"next_steps": list(record.get("next_steps") or []),
-				"assigned_to": (record.get("assigned_to") or "").strip(),
+				"assigned_to": (record.get("assigned_to") or "").strip() or DEFAULT_ROLE,
 				"tool": (record.get("tool") or "").strip(),
 			}
 		)
@@ -143,10 +140,19 @@ def generate_bpmn_xml(step_records):
 		task.set("name", step["name"])
 		documentation = ET.SubElement(task, "{" + BPMN_NS + "}documentation")
 		documentation.set("textFormat", "text/plain")
-		documentation.text = "Executor: {0} | Tool: {1}".format(
+		documentation.text = "Rolle: {0} | Tool: {1}".format(
 			step["assigned_to"] or "-", step["tool"] or "-"
 		)
-		task_nodes.append({"id": node_id, "name": step["name"], "layer": 0, "w": TASK_W, "h": TASK_H})
+		task_nodes.append(
+			{
+				"id": node_id,
+				"name": step["name"],
+				"role": step["assigned_to"],
+				"layer": 0,
+				"w": TASK_W,
+				"h": TASK_H,
+			}
+		)
 
 	end_event = ET.SubElement(process, "{" + BPMN_NS + "}endEvent")
 	end_event.set("id", "EndEvent_1")
@@ -165,19 +171,38 @@ def generate_bpmn_xml(step_records):
 		flow.set("targetRef", target_id)
 		flow_records.append(("Flow_{0}".format(flow_id), source_id, target_id))
 
+	# ---- Layout ----
 	if not clean_steps:
 		add_flow("StartEvent_1", "EndEvent_1")
-	else:
-		for step in clean_steps:
-			for nxt in next_map[step["name"]]:
-				add_flow(name_to_id[step["name"]], name_to_id[nxt])
-			if not next_map[step["name"]]:
-				add_flow(name_to_id[step["name"]], "EndEvent_1")
-		for name in clean_steps:
-			if not pred_map.get(name["name"]):
-				add_flow("StartEvent_1", name_to_id[name["name"]])
+		nodes = [
+			{
+				"id": "StartEvent_1",
+				"x": LANE_HEADER_W + BASE_X - EVENT_W / 2.0,
+				"y": 60.0,
+				"w": EVENT_W,
+				"h": EVENT_H,
+			},
+			{
+				"id": "EndEvent_1",
+				"x": LANE_HEADER_W + BASE_X + COL_W - EVENT_W / 2.0,
+				"y": 60.0,
+				"w": EVENT_W,
+				"h": EVENT_H,
+			},
+		]
+		node_by_id = {node["id"]: node for node in nodes}
 
-	# ---- Layout ----
+		diagram = ET.SubElement(root, "{" + BPMNDI_NS + "}BPMNDiagram")
+		diagram.set("id", "BPMNDiagram_1")
+		plane = ET.SubElement(diagram, "{" + BPMNDI_NS + "}BPMNPlane")
+		plane.set("id", "BPMNPlane_1")
+		plane.set("bpmnElement", "Process_1")
+		for node in nodes:
+			add_shape(plane, node)
+		for edge_id, source_id, target_id in flow_records:
+			add_edge(plane, edge_id, source_id, target_id, node_by_id)
+		return ET.tostring(root, encoding="unicode", xml_declaration=True)
+
 	layer_of = _layer_assignments(
 		[step["name"] for step in clean_steps], next_map, pred_map
 	)
@@ -185,12 +210,78 @@ def generate_bpmn_xml(step_records):
 		task["layer"] = layer_of[task["name"]]
 	max_layer = max((task["layer"] for task in task_nodes), default=1)
 
-	all_nodes = [{"id": "StartEvent_1", "layer": 0, "w": EVENT_W, "h": EVENT_H}]
-	all_nodes += task_nodes
-	all_nodes += [{"id": "EndEvent_1", "layer": max_layer + 1, "w": EVENT_W, "h": EVENT_H}]
-	_position_nodes(all_nodes)
+	for step in clean_steps:
+		for nxt in next_map[step["name"]]:
+			add_flow(name_to_id[step["name"]], name_to_id[nxt])
+		if not next_map[step["name"]]:
+			add_flow(name_to_id[step["name"]], "EndEvent_1")
+	for name in clean_steps:
+		if not pred_map.get(name["name"]):
+			add_flow("StartEvent_1", name_to_id[name["name"]])
 
-	node_by_id = {node["id"]: node for node in all_nodes}
+	# Roles -> lanes, in order of first appearance
+	roles = []
+	for task in task_nodes:
+		if task["role"] not in roles:
+			roles.append(task["role"])
+	lane_index = {role: i for i, role in enumerate(roles)}
+	for task in task_nodes:
+		task["lane"] = lane_index[task["role"]]
+
+	start_node = {"id": "StartEvent_1", "layer": 0, "w": EVENT_W, "h": EVENT_H}
+	end_node = {"id": "EndEvent_1", "layer": max_layer + 1, "w": EVENT_W, "h": EVENT_H}
+	start_node["lane"] = task_nodes[0]["lane"]
+	end_node["lane"] = task_nodes[-1]["lane"]
+
+	# Collect nodes per lane
+	lane_nodes = {i: [] for i in range(len(roles))}
+	for task in task_nodes:
+		lane_nodes[task["lane"]].append(task)
+	lane_nodes[start_node["lane"]].append(start_node)
+	lane_nodes[end_node["lane"]].append(end_node)
+
+	# Lane heights
+	lane_heights = {}
+	for i, nodes in lane_nodes.items():
+		by_layer = _group_by_layer(nodes)
+		stack = max((len(group) for group in by_layer.values()), default=1)
+		lane_heights[i] = LANE_PAD_TOP + stack * ROW_H + LANE_PAD_BOTTOM
+
+	# Lane y offsets
+	lane_y = {}
+	cursor = 0
+	for i in range(len(roles)):
+		lane_y[i] = cursor
+		cursor += lane_heights[i]
+
+	# Position nodes inside their lanes
+	nodes = []
+	for i, nodes_in_lane in lane_nodes.items():
+		top = lane_y[i]
+		height = lane_heights[i]
+		for layer, group in _group_by_layer(nodes_in_lane).items():
+			stack_h = len(group) * ROW_H
+			y_offset = top + (height - stack_h) / 2.0
+			for index, node in enumerate(group):
+				x_center = LANE_HEADER_W + BASE_X + layer * COL_W
+				node["x"] = x_center - node["w"] / 2.0
+				node["y"] = y_offset + index * ROW_H - node["h"] / 2.0
+				nodes.append(node)
+
+	node_by_id = {node["id"]: node for node in nodes}
+
+	lane_w = max((node["x"] + node["w"] for node in nodes), default=0) + LANE_END_MARGIN
+
+	# ---- Lanes (XML) ----
+	lane_set = ET.SubElement(process, "{" + BPMN_NS + "}laneSet")
+	lane_set.set("id", "LaneSet_1")
+	for i, role in enumerate(roles):
+		lane = ET.SubElement(lane_set, "{" + BPMN_NS + "}lane")
+		lane.set("id", "Lane_{0}".format(i + 1))
+		lane.set("name", role)
+		for node in lane_nodes[i]:
+			ref = ET.SubElement(lane, "{" + BPMN_NS + "}flowNodeRef")
+			ref.text = node["id"]
 
 	# ---- BPMNDI ----
 	diagram = ET.SubElement(root, "{" + BPMNDI_NS + "}BPMNDiagram")
@@ -199,35 +290,49 @@ def generate_bpmn_xml(step_records):
 	plane.set("id", "BPMNPlane_1")
 	plane.set("bpmnElement", "Process_1")
 
-	def add_shape(node_id, x, y, w, h):
+	# Lane shapes
+	for i in range(len(roles)):
 		shape = ET.SubElement(plane, "{" + BPMNDI_NS + "}BPMNShape")
-		shape.set("id", "Shape_{0}".format(node_id))
-		shape.set("bpmnElement", node_id)
+		shape.set("id", "LaneShape_{0}".format(i + 1))
+		shape.set("bpmnElement", "Lane_{0}".format(i + 1))
+		shape.set("isHorizontal", "true")
 		bounds = ET.SubElement(shape, "{" + DC_NS + "}Bounds")
-		bounds.set("x", "{0:.1f}".format(x))
-		bounds.set("y", "{0:.1f}".format(y))
-		bounds.set("width", str(int(w)))
-		bounds.set("height", str(int(h)))
+		bounds.set("x", "0")
+		bounds.set("y", "{0:.1f}".format(lane_y[i]))
+		bounds.set("width", "{0:.1f}".format(lane_w))
+		bounds.set("height", "{0:.1f}".format(lane_heights[i]))
 
-	def add_edge(edge_id, source_id, target_id, source_point, target_point):
-		edge = ET.SubElement(plane, "{" + BPMNDI_NS + "}BPMNEdge")
-		edge.set("id", "Edge_{0}".format(edge_id))
-		edge.set("bpmnElement", edge_id)
-		for px, py in (source_point, target_point):
-			waypoint = ET.SubElement(edge, "{" + DI_NS + "}waypoint")
-			waypoint.set("x", "{0:.1f}".format(px))
-			waypoint.set("y", "{0:.1f}".format(py))
-
-	for node in all_nodes:
-		add_shape(node["id"], node["x"], node["y"], node["w"], node["h"])
+	for node in nodes:
+		add_shape(plane, node)
 
 	for edge_id, source_id, target_id in flow_records:
 		if source_id not in node_by_id or target_id not in node_by_id:
 			continue
-		source = node_by_id[source_id]
-		target = node_by_id[target_id]
-		source_point = (source["x"] + source["w"], source["y"] + source["h"] / 2.0)
-		target_point = (target["x"], target["y"] + target["h"] / 2.0)
-		add_edge(edge_id, source_id, target_id, source_point, target_point)
+		add_edge(plane, edge_id, source_id, target_id, node_by_id)
 
 	return ET.tostring(root, encoding="unicode", xml_declaration=True)
+
+
+def add_shape(plane, node):
+	shape = ET.SubElement(plane, "{" + BPMNDI_NS + "}BPMNShape")
+	shape.set("id", "Shape_{0}".format(node["id"]))
+	shape.set("bpmnElement", node["id"])
+	bounds = ET.SubElement(shape, "{" + DC_NS + "}Bounds")
+	bounds.set("x", "{0:.1f}".format(node["x"]))
+	bounds.set("y", "{0:.1f}".format(node["y"]))
+	bounds.set("width", str(int(node["w"])))
+	bounds.set("height", str(int(node["h"])))
+
+
+def add_edge(plane, edge_id, source_id, target_id, node_by_id):
+	edge = ET.SubElement(plane, "{" + BPMNDI_NS + "}BPMNEdge")
+	edge.set("id", "Edge_{0}".format(edge_id))
+	edge.set("bpmnElement", edge_id)
+	source = node_by_id[source_id]
+	target = node_by_id[target_id]
+	source_point = (source["x"] + source["w"], source["y"] + source["h"] / 2.0)
+	target_point = (target["x"], target["y"] + target["h"] / 2.0)
+	for px, py in (source_point, target_point):
+		waypoint = ET.SubElement(edge, "{" + DI_NS + "}waypoint")
+		waypoint.set("x", "{0:.1f}".format(px))
+		waypoint.set("y", "{0:.1f}".format(py))
