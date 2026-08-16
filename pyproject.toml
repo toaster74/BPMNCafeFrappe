@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bpmn_workflow"
+version = "1.0.0"
+description = "Workflow management app for Frappe that stores workflows as BPMN 2.0 models and renders them graphically with bpmn-js."
+authors = [{ name = "Frappe Developer" }]
+requires-python = ">=3.10"
+dependencies = ["frappe"]
+
+[project.optional-dependencies]
+dev = ["py-spy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bpmn_workflow*"]
+
+[tool.setuptools.package-data]
+"bpmn_workflow*" = ["**/*.json", "**/*.js", "**/*.css", "**/*.html", "**/*.txt", "**/*.md", "**/*.min.js"]
