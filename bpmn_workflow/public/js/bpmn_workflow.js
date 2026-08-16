@@ -25,9 +25,6 @@ frappe.ui.form.on("BPMN Workflow", {
 			render_bpmn_diagram(frm);
 		}
 	},
-
-	// Triggered by the "Generate BPMN Model" button (field option "generate_bpmn").
-	// Generates the XML on the server and renders it without saving the document.
 	generate_bpmn: function (frm) {
 		var step_records = (frm.doc.steps || []).map(function (step) {
 			var next_steps = (step.next_step || "")
@@ -39,6 +36,7 @@ frappe.ui.form.on("BPMN Workflow", {
 			return {
 				name: step.step_name,
 				next_steps: next_steps,
+				step_type: step.step_type,
 				bedingung: step.bedingung,
 				assigned_to: step.assigned_to,
 				tool: step.tool,
@@ -75,6 +73,29 @@ frappe.ui.form.on("BPMN Workflow", {
 		frappe.require(PDF_ASSETS).then(function () {
 			export_bpmn_pdf(frm);
 		});
+	},
+});
+
+// Plausibility check for each step row entered in the child table.
+frappe.ui.form.on("BPMN Workflow Step", {
+	validate: function (frm, cdt, cdn) {
+		var row = frappe.get_doc(cdt, cdn);
+		var step_type = (row.step_type || "Funktion").trim();
+		var bedingung = (row.bedingung || "").trim();
+		if (step_type === "Abzweigung" && !bedingung) {
+			frappe.throw(
+				__("Step '{0}': a condition (Bedingung) is required for a gateway (Abzweigung).").format(
+					row.step_name
+				)
+			);
+		}
+		if (step_type === "Funktion" && bedingung) {
+			frappe.throw(
+				__(
+					"Step '{0}': a condition (Bedingung) is not allowed for a function (Funktion)."
+				).format(row.step_name)
+			);
+		}
 	},
 });
 

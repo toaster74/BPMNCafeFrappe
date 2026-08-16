@@ -10,9 +10,11 @@ library in the browser, so the Python side never has to reason about geometry.
 Each step is described by:
     - name        (str)   step name, used as a unique reference
     - next_steps  (list)  names of the steps that follow this one
-    - bedingung   (str)   optional condition for this row; rows that share the
-                          same step name become branches (exclusive gateway) of
-                          one decision step
+    - step_type   (str)   "Funktion" (task) or "Abzweigung" (gateway); rows of
+                          type "Abzweigung" that share the same step name become
+                          branches of one exclusive gateway
+    - bedingung   (str)   condition for a gateway row (rendered on the
+                          outgoing sequence flow); not allowed for tasks
     - assigned_to (str)   BPMN role that executes the step; every role gets
                           its own horizontal swimlane (lane) in the diagram
     - tool        (str)   tool used to implement the step (stored in documentation)
@@ -53,7 +55,8 @@ def _unique(prefix, used):
 
 
 def generate_bpmn_xml(step_records):
-	"""step_records: list of dicts {name, next_steps (list of str), assigned_to, tool}.
+	"""step_records: list of dicts
+	{name, next_steps (list of str), step_type, bedingung, assigned_to, tool}.
 
 	Returns BPMN 2.0 XML containing only the semantic model (no BPMNDI).
 	"""
@@ -69,6 +72,7 @@ def generate_bpmn_xml(step_records):
 			{
 				"name": name,
 				"next_steps": list(record.get("next_steps") or []),
+				"step_type": (record.get("step_type") or "Funktion").strip(),
 				"bedingung": (record.get("bedingung") or "").strip(),
 				"assigned_to": (record.get("assigned_to") or "").strip() or DEFAULT_ROLE,
 				"tool": (record.get("tool") or "").strip(),
@@ -76,12 +80,11 @@ def generate_bpmn_xml(step_records):
 		)
 
 	existing_names = {step["name"] for step in clean_steps}
-	name_counts = {}
-	for step in clean_steps:
-		name_counts[step["name"]] = name_counts.get(step["name"], 0) + 1
 
 	def is_gateway(name):
-		return name_counts.get(name, 0) > 1
+		return any(
+			step["name"] == name and step["step_type"] == "Abzweigung" for step in clean_steps
+		)
 
 	pred_map = {}
 	for step in clean_steps:

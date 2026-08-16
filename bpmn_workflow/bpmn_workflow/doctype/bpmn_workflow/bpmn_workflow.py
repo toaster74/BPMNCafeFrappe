@@ -11,6 +11,7 @@ from bpmn_workflow.bpmn import generate_bpmn_xml
 
 class BPMNWorkflow(Document):
 	def validate(self):
+		_validate_steps(self.steps)
 		self.bpmn_xml = generate_bpmn_xml(_step_records(self))
 
 	def on_trash(self):
@@ -32,12 +33,37 @@ def _step_records(workflow):
 			{
 				"name": step.step_name,
 				"next_steps": _split_next_steps(step.next_step),
+				"step_type": step.step_type,
 				"bedingung": step.bedingung,
 				"assigned_to": step.assigned_to,
 				"tool": step.tool,
 			}
 		)
 	return records
+
+
+def _validate_steps(steps):
+	"""Plausibility check for each step row.
+
+	- A step of type "Abzweigung" (gateway) must have a condition.
+	- A step of type "Funktion" (task) must NOT have a condition.
+	"""
+	for step in steps:
+		name = (step.step_name or "").strip()
+		step_type = (step.step_type or "Funktion").strip()
+		bedingung = (step.bedingung or "").strip()
+		if step_type == "Abzweigung" and not bedingung:
+			frappe.throw(
+				frappe._("Step '{0}': a condition (Bedingung) is required for a gateway (Abzweigung).").format(
+					name
+				)
+			)
+		if step_type == "Funktion" and bedingung:
+			frappe.throw(
+				frappe._(
+					"Step '{0}': a condition (Bedingung) is not allowed for a function (Funktion)."
+				).format(name)
+			)
 
 
 def _split_next_steps(value):
