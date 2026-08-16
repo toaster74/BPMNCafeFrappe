@@ -12,8 +12,8 @@
   "steps",
   "bpmn_section",
   "generate_bpmn",
-  "bpmn_xml",
-  "bpmn_preview"
+  "bpmn_preview",
+  "bpmn_xml"
  ],
  "fields": [
   {

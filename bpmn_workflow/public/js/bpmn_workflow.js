@@ -1,10 +1,12 @@
 // Client-side logic for the "BPMN Workflow" DocType.
 // Renders the generated BPMN 2.0 model in the form using bpmn-js.
+// Layout (DI coordinates) is computed at render time by bpmn-auto-layout.
 
 var BPMN_ASSETS = [
 	"/assets/bpmn_workflow/css/vendor/diagram-js.css",
 	"/assets/bpmn_workflow/css/vendor/bpmn-js.css",
 	"/assets/bpmn_workflow/css/vendor/bpmn-embedded.css",
+	"/assets/bpmn_workflow/js/bpmn-auto-layout/bpmn-auto-layout.min.js",
 	"/assets/bpmn_workflow/js/bpmn-js/bpmn-viewer.production.min.js",
 ];
 
@@ -66,7 +68,7 @@ function load_bpmn_assets(callback) {
 }
 
 function render_bpmn_diagram(frm) {
-	if (!window.BpmnJS) return;
+	if (!window.BpmnJS || !window.BpmnAutoLayout) return;
 
 	var container = document.getElementById("bpmn-preview-container");
 	if (!container) return;
@@ -80,11 +82,29 @@ function render_bpmn_diagram(frm) {
 		return;
 	}
 
+	// Compute layout (DI) client-side from the semantic model
+	BpmnAutoLayout.layoutProcess(xml)
+		.then(function (result) {
+			var layouted_xml = typeof result === "string" ? result : result.xml;
+			return render_viewer(frm, layouted_xml);
+		})
+		.catch(function (err) {
+			console.error(err);
+			frappe.msgprint({
+				title: __("Error"),
+				message: __("Could not compute the BPMN layout."),
+				indicator: "red",
+			});
+		});
+}
+
+function render_viewer(frm, xml) {
 	if (frm.bpmn_viewer) {
 		frm.bpmn_viewer.destroy();
 		frm.bpmn_viewer = null;
 	}
 
+	var container = document.getElementById("bpmn-preview-container");
 	container.innerHTML = "";
 
 	var viewer = new BpmnJS({
@@ -92,7 +112,7 @@ function render_bpmn_diagram(frm) {
 		height: "100%",
 	});
 
-	viewer
+	return viewer
 		.importXML(xml)
 		.then(function () {
 			var canvas = viewer.get("canvas");
@@ -106,6 +126,4 @@ function render_bpmn_diagram(frm) {
 				indicator: "red",
 			});
 		});
-
-	frm.bpmn_viewer = viewer;
 }
