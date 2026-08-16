@@ -60,13 +60,14 @@ Autoname über `field:workflow_name` (eindeutiger Workflow-Name).
 | `steps`              | Table `BPMN Workflow Step` | nein | Die Workflow-Schritte (Kindtabelle)      |
 | `generate_bpmn`      | Button      | –        | erzeugt XML zur Vorschau ohne Speichern (`generate_bpmn`) |
 | `pdf_export`         | Button      | –        | exportiert das gerenderte Diagramm als PDF (`pdf_export`) |
+| `graphml_export`     | Button      | –        | exportiert das Diagramm als yEd-kompatibles GraphML (`graphml_export`) |
 | `bpmn_preview`       | HTML        | –        | Container `<div id="bpmn-preview-container">` für bpmn-js |
 | `bpmn_xml`           | Code (XML)  | –        | generiertes BPMN-XML (read-only, auto-gefüllt) |
 
 Feldreihenfolge:
 `workflow_name, workflow_description, autor, prozess_owner, workflow_designer,
 inkrafttreten, steps_section, steps, bpmn_section, generate_bpmn, pdf_export,
-bpmn_preview, bpmn_xml`.
+graphml_export, bpmn_preview, bpmn_xml`.
 
 Berechtigungen: nur **System Manager** (create/read/write/delete).
 
@@ -172,6 +173,10 @@ Namen `step_type == "Abzweigung"` hat.
 | `render_viewer` | erstellt bpmn-js-Viewer, `importXML`, Zoom `fit-viewport`; Viewer wird auf `frm.bpmn_viewer` gespeichert |
 | `export_bpmn_pdf` | `viewer.saveSVG()` → `svg_to_canvas` → jsPDF A4 Querformat, Bild zentriert eingebettet |
 | `svg_to_canvas` | setzt `width`/`height` aus `viewBox` (falls fehlend), rastert SVG 2× auf Canvas |
+| `graphml_export` | lädt das gerenderte Diagramm (`viewer.saveXML()`) als yEd-kompatibles GraphML herunter |
+| `bpmn_to_graphml` | konvertiert BPMN-XML (semantisch + BPMNDI) in GraphML (yFiles-Schema): `startEvent`/`endEvent` → Ellipse, `exclusiveGateway` → Raute, `userTask` → abgerundetes Rechteck; Bedingungen werden als `EdgeLabel` übernommen; Geometrie aus `BPMNShape/Bounds` |
+| `escape_xml` | XML-escaped Werte für das GraphML-Serialisieren |
+| `download_file` | löst den Browser-Download eines Blobs als Datei aus |
 
 **Viewer-Werkzeugleiste** (Zoom & Vollbild): `render_viewer` baut eine
 Toolbar oben rechts im Preview-Container mit vier Buttons:

@@ -23,6 +23,7 @@ dargestellt werden.
 - Grafische Anzeige im Formular (bpmn-js), inkl. Swimlanes und
   Abzweigungen (exklusive Gateways mit beschrifteten Bedingungen).
 - **PDF-Export** des gerenderten Diagramms (A4, Querformat).
+- **GraphML-Export** für yEd (inkl. Formen, Bedingungen und Layout).
 - Plausibilitätsprüfung der Schritt-Eingaben (Client + Server).
 
 ## Installation
@@ -49,7 +50,7 @@ bench build
    Next Step(s) (kommagetrennt), bei Abzweigung eine Bedingung, Rolle + Tool.
 4. **Generate BPMN Model** klicken – das Diagramm erscheint unter
    **BPMN Model → BPMN Preview**, das XML darunter.
-5. Speichern; optional **PDF Export**.
+5. Speichern; optional **PDF Export** oder **GraphML Export** (für yEd).
 
 Ausführlich: `docs/BENUTZERDOKUMENTATION.md`.
 

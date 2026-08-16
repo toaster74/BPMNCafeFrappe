@@ -143,7 +143,31 @@ Vollbildmodus wird das Diagramm automatisch angepasst.
 
 ---
 
-## 8. Häufige Fragen
+## 8. GraphML-Export (für yEd)
+
+Das Diagramm kann als **GraphML** heruntergeladen und in **yEd** (Graph-Editor,
+https://www.yworks.com/yed) geöffnet werden.
+
+1. Sicherstellen, dass das Diagramm gerendert wurde (Schritt 6).
+2. **„GraphML Export“** klicken.
+3. Es wird eine Datei `<Workflow Name>.graphml` heruntergeladen.
+4. In yEd: **Datei → Öffnen** und die `.graphml`-Datei wählen.
+
+Die Formen und Beschriftungen werden übernommen:
+
+| BPMN-Element      | yEd-Form         |
+|-------------------|------------------|
+| Start-/Endereignis | Ellipse          |
+| Funktion (Task)   | abgerundetes Rechteck |
+| Abzweigung (Gateway) | Raute         |
+| Fluss             | Pfeil mit Richtung |
+| Bedingung         | Beschriftung am Pfeil |
+
+> Ohne gerendertes Diagramm erscheint: „Generate the BPMN diagram first.“
+
+---
+
+## 9. Häufige Fragen
 
 **Ich sehe keine Bedingung im Diagramm.** – Bedingungen werden nur bei
 `Abzweigung` unterstützt und erscheinen als Beschriftung des Flusses.
@@ -159,7 +183,7 @@ in **Next Step(s)** eintragen.
 
 ---
 
-## 9. Dokumentationspflicht
+## 10. Dokumentationspflicht
 
 Bei **neuen Funktionen** wird diese Anleitung sowie die
 `ANFORDERUNGEN.md` entsprechend erweitert (vgl. `AGENTS.md`).

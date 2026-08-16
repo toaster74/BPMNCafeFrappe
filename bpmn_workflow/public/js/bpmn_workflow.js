@@ -74,6 +74,20 @@ frappe.ui.form.on("BPMN Workflow", {
 			export_bpmn_pdf(frm);
 		});
 	},
+
+	// Triggered by the "GraphML Export" button (field option "graphml_export").
+	// Downloads the rendered diagram as a yEd-compatible GraphML file.
+	graphml_export: function (frm) {
+		if (!frm.bpmn_viewer) {
+			frappe.msgprint({
+				title: __("No Diagram"),
+				message: __("Generate the BPMN diagram first."),
+				indicator: "orange",
+			});
+			return;
+		}
+		export_bpmn_graphml(frm);
+	},
 });
 
 // Plausibility check for each step row entered in the child table.
@@ -349,4 +363,164 @@ function svg_to_canvas(svgString) {
 		};
 		image.src = dataUrl;
 	});
+}
+
+function export_bpmn_graphml(frm) {
+	var viewer = frm.bpmn_viewer;
+	if (!viewer) return;
+
+	frappe.show_alert({ message: __("Preparing GraphML..."), indicator: "blue" });
+
+	viewer
+		.saveXML({ format: true })
+		.then(function (result) {
+			var graphml = bpmn_to_graphml(result.xml);
+			var filename = (frm.doc.workflow_name || "bpmn-workflow") + ".graphml";
+			download_file(filename, graphml, "application/graphml+xml");
+			frappe.show_alert({ message: __("GraphML exported."), indicator: "green" });
+		})
+		.catch(function (err) {
+			console.error(err);
+			frappe.msgprint({
+				title: __("Error"),
+				message: __("Could not export the GraphML."),
+				indicator: "red",
+			});
+		});
+}
+
+// Convert BPMN 2.0 XML (with BPMNDI layout) to a yEd-compatible GraphML file.
+function bpmn_to_graphml(xml) {
+	var doc = new DOMParser().parseFromString(xml, "application/xml");
+
+	var nodes = [];
+	var edges = [];
+	var bounds = {};
+
+	var elements = doc.getElementsByTagName("*");
+	for (var i = 0; i < elements.length; i++) {
+		var el = elements[i];
+		var tag = el.localName || el.tagName;
+		if (
+			tag === "startEvent" ||
+			tag === "endEvent" ||
+			tag === "userTask" ||
+			tag === "exclusiveGateway"
+		) {
+			nodes.push({
+				id: el.getAttribute("id"),
+				type: tag,
+				name: el.getAttribute("name") || "",
+			});
+		} else if (tag === "sequenceFlow") {
+			edges.push({
+				id: el.getAttribute("id"),
+				source: el.getAttribute("sourceRef"),
+				target: el.getAttribute("targetRef"),
+				name: el.getAttribute("name") || "",
+			});
+		} else if (tag === "BPMNShape") {
+			var bpmnElement = el.getAttribute("bpmnElement");
+			var boundsEl = el.getElementsByTagNameNS("*", "Bounds")[0];
+			if (bpmnElement && boundsEl) {
+				bounds[bpmnElement] = {
+					x: parseFloat(boundsEl.getAttribute("x")) || 0,
+					y: parseFloat(boundsEl.getAttribute("y")) || 0,
+					width: parseFloat(boundsEl.getAttribute("width")) || 100,
+					height: parseFloat(boundsEl.getAttribute("height")) || 80,
+				};
+			}
+		}
+	}
+
+	var lines = [];
+	lines.push('<?xml version="1.0" encoding="UTF-8" standalone="no"?>');
+	lines.push('<graphml xmlns="http://graphml.graphdrawing.org/xmlns"');
+	lines.push('\txmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"');
+	lines.push('\txmlns:y="http://www.yworks.com/xml/graphml"');
+	lines.push('\txmlns:yed="http://www.yworks.com/xml/yed/3"');
+	lines.push('\txsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">');
+	lines.push('\t<key for="node" id="d0" yfiles.type="nodegraphics"/>');
+	lines.push('\t<key for="edge" id="d1" yfiles.type="edgegraphics"/>');
+	lines.push('\t<graph id="G" edgedefault="directed">');
+
+	nodes.forEach(function (node) {
+		var b = bounds[node.id] || { x: 0, y: 0, width: 100, height: 80 };
+		var shape =
+			node.type === "startEvent" || node.type === "endEvent"
+				? 'type="ellipse"'
+				: node.type === "exclusiveGateway"
+					? 'type="rhombus"'
+					: 'type="roundrectangle"';
+		lines.push('\t\t<node id="' + escape_xml(node.id) + '">');
+		lines.push('\t\t\t<data key="d0">');
+		lines.push('\t\t\t\t<y:ShapeNode>');
+		lines.push(
+			'\t\t\t\t\t<y:Geometry height="' +
+				b.height +
+				'" width="' +
+				b.width +
+				'" x="' +
+				b.x +
+				'" y="' +
+				b.y +
+				'"/>'
+		);
+		lines.push('\t\t\t\t\t<y:Fill color="#FFFFFF" transparent="false"/>');
+		lines.push('\t\t\t\t\t<y:BorderStyle color="#000000" type="line" width="1.0"/>');
+		if (node.name) {
+			lines.push('\t\t\t\t\t<y:NodeLabel>' + escape_xml(node.name) + "</y:NodeLabel>");
+		}
+		lines.push("\t\t\t\t\t<y:Shape " + shape + "/>");
+		lines.push("\t\t\t\t</y:ShapeNode>");
+		lines.push("\t\t\t</data>");
+		lines.push("\t\t</node>");
+	});
+
+	edges.forEach(function (edge) {
+		lines.push(
+			'\t\t<edge id="' +
+				escape_xml(edge.id) +
+				'" source="' +
+				escape_xml(edge.source) +
+				'" target="' +
+				escape_xml(edge.target) +
+				'">'
+		);
+		lines.push("\t\t\t<data key=\"d1\">");
+		lines.push("\t\t\t\t<y:PolyLineEdge>");
+		lines.push('\t\t\t\t\t<y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0"/>');
+		lines.push('\t\t\t\t\t<y:LineStyle color="#000000" type="line" width="1.0"/>');
+		lines.push('\t\t\t\t\t<y:Arrows source="none" target="standard"/>');
+		if (edge.name) {
+			lines.push("\t\t\t\t\t<y:EdgeLabel>" + escape_xml(edge.name) + "</y:EdgeLabel>");
+		}
+		lines.push("\t\t\t\t</y:PolyLineEdge>");
+		lines.push("\t\t\t</data>");
+		lines.push("\t\t</edge>");
+	});
+
+	lines.push("\t</graph>");
+	lines.push("</graphml>");
+	return lines.join("\n");
+}
+
+function escape_xml(value) {
+	return String(value)
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
+}
+
+function download_file(filename, content, mime) {
+	var blob = new Blob([content], { type: mime });
+	var url = URL.createObjectURL(blob);
+	var a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
 }

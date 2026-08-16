@@ -17,6 +17,7 @@
   "bpmn_section",
   "generate_bpmn",
   "pdf_export",
+  "graphml_export",
   "bpmn_preview",
   "bpmn_xml"
  ],
@@ -255,6 +256,12 @@
    "fieldtype": "Button",
    "label": "PDF Export",
    "options": "pdf_export"
+  },
+  {
+   "fieldname": "graphml_export",
+   "fieldtype": "Button",
+   "label": "GraphML Export",
+   "options": "graphml_export"
   },
   {
    "allow_on_submit": 0,
