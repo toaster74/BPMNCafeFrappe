@@ -190,6 +190,7 @@ function render_viewer(frm, xml) {
 		.then(function () {
 			var canvas_view = viewer.get("canvas");
 			canvas_view.zoom("fit-viewport", "auto");
+			enable_canvas_panning(viewer, container);
 		})
 		.catch(function (err) {
 			console.error(err);
@@ -211,6 +212,8 @@ function inject_viewer_css() {
 	style.textContent = [
 		"#bpmn-preview-container{position:relative;}",
 		"#bpmn-preview-container .bpmn-canvas{position:absolute;top:0;left:0;right:0;bottom:0;}",
+		"#bpmn-preview-container .bpmn-canvas .djs-container{cursor:grab;}",
+		"#bpmn-preview-container .bpmn-canvas .djs-container.bpmn-panning{cursor:grabbing;}",
 		"#bpmn-preview-container .bpmn-toolbar{position:absolute;top:8px;right:8px;z-index:100;display:flex;gap:4px;padding:4px;background:rgba(255,255,255,.92);border:1px solid var(--border-color);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.1);}",
 		"#bpmn-preview-container .bpmn-btn{border:1px solid var(--border-color);background:#fff;color:inherit;border-radius:4px;cursor:pointer;padding:2px 8px;font-size:13px;line-height:1.5;}",
 		"#bpmn-preview-container .bpmn-btn:hover{background:var(--control-bg);}",
@@ -264,6 +267,79 @@ function toggle_fullscreen(container) {
 			doc.webkitExitFullscreen();
 		}
 	}
+}
+
+var panning_state = null;
+
+// The bundled bpmn-js viewer does not ship the moveCanvas / zoomScroll
+// modules, so drag-to-pan and mouse-wheel panning are wired up manually.
+function enable_canvas_panning(viewer, container) {
+	var canvas_el = container.querySelector(".bpmn-canvas");
+	var djs_container = canvas_el ? canvas_el.querySelector(".djs-container") : null;
+	if (!djs_container) return;
+
+	// Drop listeners registered for a previously rendered viewer instance.
+	if (panning_state) {
+		panning_state.djs_container.removeEventListener("mousedown", panning_state.on_mouse_down);
+		panning_state.doc.removeEventListener("mousemove", panning_state.on_mouse_move);
+		panning_state.doc.removeEventListener("mouseup", panning_state.on_mouse_up);
+		panning_state.djs_container.removeEventListener("wheel", panning_state.on_wheel);
+		panning_state = null;
+	}
+
+	var bpmn_canvas = viewer.get("canvas");
+	var doc = container.ownerDocument;
+	var dragging = false;
+	var last_x = 0;
+	var last_y = 0;
+
+	function on_mouse_down(event) {
+		if (event.button !== 0) return;
+		if (event.target.closest(".bpmn-toolbar")) return;
+		dragging = true;
+		last_x = event.clientX;
+		last_y = event.clientY;
+		djs_container.classList.add("bpmn-panning");
+		event.preventDefault();
+	}
+
+	function on_mouse_move(event) {
+		if (!dragging) return;
+		bpmn_canvas.scroll({
+			dx: event.clientX - last_x,
+			dy: event.clientY - last_y,
+		});
+		last_x = event.clientX;
+		last_y = event.clientY;
+	}
+
+	function on_mouse_up() {
+		if (!dragging) return;
+		dragging = false;
+		djs_container.classList.remove("bpmn-panning");
+	}
+
+	function on_wheel(event) {
+		event.preventDefault();
+		// Natural scroll direction: wheel down reveals content below the viewport.
+		var dx = event.shiftKey ? -event.deltaY : -event.deltaX;
+		var dy = event.shiftKey ? 0 : -event.deltaY;
+		bpmn_canvas.scroll({ dx: dx, dy: dy });
+	}
+
+	djs_container.addEventListener("mousedown", on_mouse_down);
+	doc.addEventListener("mousemove", on_mouse_move);
+	doc.addEventListener("mouseup", on_mouse_up);
+	djs_container.addEventListener("wheel", on_wheel, { passive: false });
+
+	panning_state = {
+		djs_container: djs_container,
+		doc: doc,
+		on_mouse_down: on_mouse_down,
+		on_mouse_move: on_mouse_move,
+		on_mouse_up: on_mouse_up,
+		on_wheel: on_wheel,
+	};
 }
 
 document.addEventListener("fullscreenchange", function () {

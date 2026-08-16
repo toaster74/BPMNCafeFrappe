@@ -114,7 +114,7 @@ angezeigt.
    - Das Layout wird automatisch berechnet.
 3. Das **BPMN XML** wird darunter als Code angezeigt (nur lesbar).
 
-### 6.1 Zoomen und Vollbild
+### 6.1 Zoomen, Vollbild und Verschieben
 
 Rechts oben im Preview-Container befindet sich eine Werkzeugleiste:
 
@@ -124,8 +124,12 @@ Rechts oben im Preview-Container befindet sich eine Werkzeugleiste:
 | **Fit**    | Diagramm wieder passend zur Fenstergröße zoomen   |
 | **⛶**      | Diagramm im **Vollbild** anzeigen; erneut klicken (oder `Esc`) zum Beenden |
 
-Tipp: Das Mausrad zoomt ebenfalls direkt im Diagramm. Nach dem Wechsel in den
-Vollbildmodus wird das Diagramm automatisch angepasst.
+**Verschieben (Panning):** Das Diagramm lässt sich mit der **linken Maustaste
+gedrückt halten und ziehen** verschieben. Das **Mausrad** scrollt das Diagramm
+ebenfalls (mit `Shift` zusätzlich horizontal) – so gelangt man in stark
+vergrößerten Ansichten an die gewünschte Stelle.
+
+Nach dem Wechsel in den Vollbildmodus wird das Diagramm automatisch angepasst.
 
 > Das Diagramm wird auch **nach jedem Speichern** automatisch neu gezeichnet.
 > Fehler im Layout erscheinen als Fehlermeldung.

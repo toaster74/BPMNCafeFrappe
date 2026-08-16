@@ -170,7 +170,8 @@ Namen `step_type == "Abzweigung"` hat.
 | `pdf_export` | exportiert das gerenderte Diagramm als PDF; ohne gerendertes Diagramm: Meldung „Generate the BPMN diagram first.“ |
 | `load_bpmn_assets` | lädt CSS + bpmn-js + bpmn-auto-layout einmalig (`window.BpmnJS`, `window.BpmnAutoLayout`) |
 | `render_bpmn_diagram` | ruft `BpmnAutoLayout.layoutProcess(xml)` → XML mit BPMNDI → `render_viewer` |
-| `render_viewer` | erstellt bpmn-js-Viewer, `importXML`, Zoom `fit-viewport`; Viewer wird auf `frm.bpmn_viewer` gespeichert |
+| `render_viewer` | erstellt bpmn-js-Viewer, `importXML`, Zoom `fit-viewport`, aktiviert Panning; Viewer wird auf `frm.bpmn_viewer` gespeichert |
+| `enable_canvas_panning` | verdrahtet manuell **Drag-Pan** (linke Maustaste) und **Mausrad-Pan** auf dem `.djs-container`, da das gebündelte bpmn-js keine `moveCanvas`/`zoomScroll`-Module enthält; entfernt beim Neu-Rendern alte Listener (`panning_state`) |
 | `export_bpmn_pdf` | `viewer.saveSVG()` → `svg_to_canvas` → jsPDF A4 Querformat, Bild zentriert eingebettet |
 | `svg_to_canvas` | setzt `width`/`height` aus `viewBox` (falls fehlend), rastert SVG 2× auf Canvas |
 | `graphml_export` | lädt das gerenderte Diagramm (`viewer.saveXML()`) als yEd-kompatibles GraphML herunter |
@@ -195,6 +196,22 @@ Die CSS-Basis dafür wird einmalig per `inject_viewer_css()` eingefügt
 `canvas.zoom("fit-viewport")` aufgerufen, damit das Diagramm nach der
 Größenänderung passt. Die Referenzen `active_viewer` / `active_container`
 dienen diesem Re-Fit.
+
+**Panning:** Der gebündelte `bpmn-viewer.production.min.js` ist der reine
+bpmn-js-Viewer ohne die Navigationsmodule `moveCanvas` (Drag-Pan) und
+`zoomScroll` (Mausrad). Daher verdrahtet `enable_canvas_panning(viewer,
+container)` das Panning manuell über `canvas.scroll({dx, dy})`:
+
+- **Drag-Pan:** `mousedown` (linke Taste) auf dem `.djs-container` startet,
+  `mousemove` verschiebt das Diagramm mit der Maus („Papier greifen“),
+  `mouseup` beendet; währenddessen `cursor: grabbing` (CSS-Klasse
+  `bpmn-panning`). Klicks auf die Toolbar lösen kein Panning aus.
+- **Mausrad-Pan:** `wheel` (passiv: `false`, `preventDefault`) scrollt das
+  Diagramm in natürlicher Scrollrichtung (`dy = -deltaY`); mit `Shift` zusätzlich
+  horizontal (`dx = -deltaY`).
+- Die beim Rendern registrierten Listener werden über die globale
+  `panning_state`-Referenz beim nächsten `render_viewer` wieder entfernt, damit
+  kein Zustand alter Viewer-Instanzen zurückbleibt.
 
 **Asserts:** Der PDF-Export setzt voraus, dass ein Diagramm gerendert wurde
 (`frm.bpmn_viewer` gesetzt). Ein leerer `bpmn_xml` zeigt im Preview-Container
