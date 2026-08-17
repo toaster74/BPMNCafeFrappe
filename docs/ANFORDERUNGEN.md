@@ -62,7 +62,8 @@ Autoname über `field:workflow_name` (eindeutiger Workflow-Name).
 | `pdf_export`         | Button      | –        | exportiert das gerenderte Diagramm als PDF (`pdf_export`) |
 | `graphml_export`     | Button      | –        | exportiert das Diagramm als yEd-kompatibles GraphML (`graphml_export`) |
 | `bpmn_preview`       | HTML        | –        | Container `<div id="bpmn-preview-container">` für bpmn-js |
-| `bpmn_xml`            | Code (XML)       | –       | generiertes BPMN-XML (read-only, auto-gefüllt)                  |
+| `bpmn_xml`            | Code (XML)       | –       | generiertes BPMN-XML (read-only, auto-gefüllt)                   |
+| **Abschnitt**         | Collapsible      | –       | *BPMN-XML* mit `collapsible=1` (standardmäßig zugeklappt)       |
 | `collapsed_xml`       | Text (geklappt) | ja       | XML-Zeichenkette, im Abschnitt zusammengeklappt, print_hide=1 |
 
 Feldreihenfolge:
@@ -82,6 +83,7 @@ Berechtigungen: nur **System Manager** (create/read/write/delete).
 | `bedingung`   | Data          | nein     | Bedingung, nur bei `Abzweigung` erlaubt und dann Pflicht           |
 | `assigned_to` | Link `BPMN Rolle` | nein | Ausführende Rolle; **bei `Abzweigung` verboten**                   |
 | `tool`        | Data          | nein     | Werkzeug zur Umsetzung (in `documentation` des Tasks)              |
+| `anmerkung`   | Small Text    | nein     | Anmerkung zum Schritt; als **TextAnnotation** neben dem Knoten im Diagramm (per `association` verknüpft) |
 
 ### 3.3 DocType `BPMN Rolle`
 
@@ -117,7 +119,7 @@ Danach wird `bpmn_xml` neu generiert.
 Datei: `bpmn_workflow/bpmn/__init__.py` – Funktion `generate_bpmn_xml(step_records)`.
 
 **Eingabe:** Liste von Dicts
-`{name, next_steps (list), step_type, bedingung, assigned_to, tool}`.
+`{name, next_steps (list), step_type, bedingung, assigned_to, tool, anmerkung}`.
 
 **Ausgabe:** BPMN 2.0-XML **ohne BPMNDI** (nur semantisches Modell).
 
@@ -130,6 +132,7 @@ Datei: `bpmn_workflow/bpmn/__init__.py` – Funktion `generate_bpmn_xml(step_rec
 | Startpunkt                          | `startEvent` `StartEvent_1` |
 | Endpunkt                            | `endEvent` `EndEvent_1` |
 | Übergang                            | `sequenceFlow`; `name` = `bedingung` (nur bei Abzweigungen) |
+| Schritt mit ausgefüllter `anmerkung` | `textAnnotation` (id `TextAnnotation_<n>`, Text = Anmerkung) + `association` (sourceRef = Knoten, targetRef = Annotation) |
 
 Ein Name gilt genau dann als Gateway, wenn **mindestens eine Zeile** mit diesem
 Namen `step_type == "Abzweigung"` hat.
@@ -156,6 +159,16 @@ Namen `step_type == "Abzweigung"` hat.
 - Es werden keine Phantom-Lanes erzeugt: eine Lane existiert nur für Rollen, die
   tatsächlich Knoten enthalten.
 
+### 5.4 Textannotationen
+
+- Für jeden Schritt mit ausgefüllter `anmerkung` wird eine
+  `textAnnotation` erzeugt (erste Zeile mit Anmerkung pro Knotenname gewinnt –
+  relevant für Abzweigungen, deren Zeilen sich einen Gateway-Knoten teilen).
+- Die Annotation wird per `association` (sourceRef = Knoten, targetRef =
+  Annotation) an den jeweiligen Task bzw. Gateway gebunden.
+- Das Client-Layout (`bpmn-auto-layout`) unterstützt `TextAnnotation` und
+  platziert sie automatisch neben dem Knoten.
+
 ---
 
 ## 6. Client-Logik (`public/js/bpmn_workflow.js`)
@@ -176,7 +189,7 @@ Namen `step_type == "Abzweigung"` hat.
 | `export_bpmn_pdf` | `viewer.saveSVG()` → `svg_to_canvas` → jsPDF A4 Querformat, Bild zentriert eingebettet |
 | `svg_to_canvas` | setzt `width`/`height` aus `viewBox` (falls fehlend), rastert SVG 2× auf Canvas |
 | `graphml_export` | lädt das gerenderte Diagramm (`viewer.saveXML()`) als yEd-kompatibles GraphML herunter |
-| `bpmn_to_graphml` | konvertiert BPMN-XML (semantisch + BPMNDI) in GraphML (yFiles-Schema): `startEvent`/`endEvent` → Ellipse, `exclusiveGateway` → Raute, `userTask` → abgerundetes Rechteck; Bedingungen werden als `EdgeLabel` übernommen; Geometrie aus `BPMNShape/Bounds` |
+| `bpmn_to_graphml` | konvertiert BPMN-XML (semantisch + BPMNDI) in GraphML (yFiles-Schema): `startEvent`/`endEvent` → Ellipse, `exclusiveGateway` → Raute, `userTask` → abgerundetes Rechteck, `textAnnotation` → gelbes Rechteck mit gestricheltem Rand; `sequenceFlow` → Linie mit Pfeil, `association` → gestrichelte Linie ohne Pfeil; Bedingungen werden als `EdgeLabel` übernommen; Geometrie aus `BPMNShape/Bounds` |
 | `escape_xml` | XML-escaped Werte für das GraphML-Serialisieren |
 | `download_file` | löst den Browser-Download eines Blobs als Datei aus |
 

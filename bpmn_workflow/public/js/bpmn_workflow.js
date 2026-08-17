@@ -40,6 +40,7 @@ frappe.ui.form.on("BPMN Workflow", {
 				bedingung: step.bedingung,
 				assigned_to: step.assigned_to,
 				tool: step.tool,
+				anmerkung: step.anmerkung,
 			};
 		});
 
@@ -481,16 +482,22 @@ function bpmn_to_graphml(xml) {
 			tag === "startEvent" ||
 			tag === "endEvent" ||
 			tag === "userTask" ||
-			tag === "exclusiveGateway"
+			tag === "exclusiveGateway" ||
+			tag === "textAnnotation"
 		) {
+			var annTextEl = tag === "textAnnotation" ? el.getElementsByTagNameNS("*", "text")[0] : null;
 			nodes.push({
 				id: el.getAttribute("id"),
 				type: tag,
-				name: el.getAttribute("name") || "",
+				name:
+					tag === "textAnnotation"
+						? (annTextEl && annTextEl.textContent) || ""
+						: el.getAttribute("name") || "",
 			});
-		} else if (tag === "sequenceFlow") {
+		} else if (tag === "sequenceFlow" || tag === "association") {
 			edges.push({
 				id: el.getAttribute("id"),
+				type: tag,
 				source: el.getAttribute("sourceRef"),
 				target: el.getAttribute("targetRef"),
 				name: el.getAttribute("name") || "",
@@ -527,7 +534,12 @@ function bpmn_to_graphml(xml) {
 				? 'type="ellipse"'
 				: node.type === "exclusiveGateway"
 					? 'type="rhombus"'
-					: 'type="roundrectangle"';
+					: node.type === "textAnnotation"
+						? 'type="rectangle"'
+						: 'type="roundrectangle"';
+		var border =
+			node.type === "textAnnotation" ? 'type="dashed" width="1.0"' : 'type="line" width="1.0"';
+		var fill = node.type === "textAnnotation" ? "#FFF9C4" : "#FFFFFF";
 		lines.push('\t\t<node id="' + escape_xml(node.id) + '">');
 		lines.push('\t\t\t<data key="d0">');
 		lines.push('\t\t\t\t<y:ShapeNode>');
@@ -542,8 +554,8 @@ function bpmn_to_graphml(xml) {
 				b.y +
 				'"/>'
 		);
-		lines.push('\t\t\t\t\t<y:Fill color="#FFFFFF" transparent="false"/>');
-		lines.push('\t\t\t\t\t<y:BorderStyle color="#000000" type="line" width="1.0"/>');
+		lines.push('\t\t\t\t\t<y:Fill color="' + fill + '" transparent="false"/>');
+		lines.push('\t\t\t\t\t<y:BorderStyle color="#000000" ' + border + '/>');
 		if (node.name) {
 			lines.push('\t\t\t\t\t<y:NodeLabel>' + escape_xml(node.name) + "</y:NodeLabel>");
 		}
@@ -554,6 +566,7 @@ function bpmn_to_graphml(xml) {
 	});
 
 	edges.forEach(function (edge) {
+		var association = edge.type === "association";
 		lines.push(
 			'\t\t<edge id="' +
 				escape_xml(edge.id) +
@@ -566,8 +579,14 @@ function bpmn_to_graphml(xml) {
 		lines.push("\t\t\t<data key=\"d1\">");
 		lines.push("\t\t\t\t<y:PolyLineEdge>");
 		lines.push('\t\t\t\t\t<y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0"/>');
-		lines.push('\t\t\t\t\t<y:LineStyle color="#000000" type="line" width="1.0"/>');
-		lines.push('\t\t\t\t\t<y:Arrows source="none" target="standard"/>');
+		lines.push(
+			'\t\t\t\t\t<y:LineStyle color="#000000" type="' +
+				(association ? "dashed" : "line") +
+				'" width="1.0"/>'
+		);
+		lines.push(
+			'\t\t\t\t\t<y:Arrows source="none" target="' + (association ? "none" : "standard") + '"/>'
+		);
 		if (edge.name) {
 			lines.push("\t\t\t\t\t<y:EdgeLabel>" + escape_xml(edge.name) + "</y:EdgeLabel>");
 		}

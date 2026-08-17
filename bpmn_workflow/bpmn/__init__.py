@@ -18,6 +18,8 @@ Each step is described by:
     - assigned_to (str)   BPMN role that executes the step; every role gets
                           its own horizontal swimlane (lane) in the diagram
     - tool        (str)   tool used to implement the step (stored in documentation)
+    - anmerkung   (str)   optional note shown next to the node in the diagram
+                          (rendered as a bpmn:TextAnnotation with an association)
 """
 import re
 import xml.etree.ElementTree as ET
@@ -56,7 +58,8 @@ def _unique(prefix, used):
 
 def generate_bpmn_xml(step_records):
 	"""step_records: list of dicts
-	{name, next_steps (list of str), step_type, bedingung, assigned_to, tool}.
+	{name, next_steps (list of str), step_type, bedingung, assigned_to, tool,
+	anmerkung}.
 
 	Returns BPMN 2.0 XML containing only the semantic model (no BPMNDI).
 	"""
@@ -76,6 +79,7 @@ def generate_bpmn_xml(step_records):
 				"bedingung": (record.get("bedingung") or "").strip(),
 				"assigned_to": (record.get("assigned_to") or "").strip() or DEFAULT_ROLE,
 				"tool": (record.get("tool") or "").strip(),
+				"anmerkung": (record.get("anmerkung") or "").strip(),
 			}
 		)
 
@@ -161,6 +165,30 @@ def generate_bpmn_xml(step_records):
 		for name in ordered_names:
 			if not pred_map.get(name):
 				add_flow("StartEvent_1", name_to_id[name])
+
+	# Text annotations: a note next to the node (bpmn:TextAnnotation + association)
+	def annotation_for(name):
+		for step in clean_steps:
+			if step["name"] == name and step.get("anmerkung"):
+				return step["anmerkung"]
+		return None
+
+	annotation_counter = 0
+	for name in ordered_names:
+		anmerkung = annotation_for(name)
+		if not anmerkung:
+			continue
+		annotation_counter += 1
+		annotation_id = "TextAnnotation_{0}".format(annotation_counter)
+		annotation = ET.SubElement(process, "{" + BPMN_NS + "}textAnnotation")
+		annotation.set("id", annotation_id)
+		annotation.set("textFormat", "text/plain")
+		text = ET.SubElement(annotation, "{" + BPMN_NS + "}text")
+		text.text = anmerkung
+		association = ET.SubElement(process, "{" + BPMN_NS + "}association")
+		association.set("id", "Association_{0}".format(annotation_counter))
+		association.set("sourceRef", name_to_id[name])
+		association.set("targetRef", annotation_id)
 
 	# Lanes: one lane per role, in order of first appearance
 	if clean_steps:

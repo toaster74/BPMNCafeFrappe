@@ -55,6 +55,7 @@ Im Bereich **Workflow Steps** pro Zeile:
 | **Bedingung**| Bedingung, nur bei `Abzweigung` (Pflicht)                             |
 | **Rolle**    | Ausführende BPMN-Rolle (nur bei `Funktion`)                           |
 | **Tool**     | Werkzeug zur Umsetzung, z. B. ERPNext (optional)                      |
+| **Anmerkung**| Freitext zum Schritt; wird als **Notiz (Textannotation)** neben dem Eintrag im Diagramm angezeigt (optional) |
 
 ### 4.1 Funktion (Typ = Funktion)
 
@@ -88,6 +89,14 @@ beschrifteten Wegen zu „Montag“ und „Dienstag“.
 
 Mehrere Ziele in **Next Step(s)** (kommagetrennt) erzeugen mehrere ausgehende
 Flüsse – z. B. ein Schritt, der mehrere Folgeaktivitäten anstößt.
+
+### 4.4 Anmerkung erfassen
+
+In der Spalte **Anmerkung** kann pro Schritt ein Freitext hinterlegt werden
+(optional). Nach dem Erzeugen des Diagramms erscheint der Text als weiße Notiz
+mit gepunktetem Rahmen **neben** dem jeweiligen Schritt – verknüpft über eine
+gestrichelte Linie (Assoziation). Die Notiz wird auch in den PDF- und
+GraphML-Export übernommen.
 
 ---
 

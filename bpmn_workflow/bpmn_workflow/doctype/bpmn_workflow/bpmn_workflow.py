@@ -13,7 +13,6 @@ class BPMNWorkflow(Document):
 	def validate(self):
 		_validate_steps(self.steps)
 		self.bpmn_xml = generate_bpmn_xml(_step_records(self))
-		self.collapsed_xml = self.bpmn_xml if self.bpmn_xml else ""
 
 	def on_trash(self):
 		pass
@@ -38,6 +37,7 @@ def _step_records(workflow):
 				"bedingung": step.bedingung,
 				"assigned_to": step.assigned_to,
 				"tool": step.tool,
+				"anmerkung": step.anmerkung,
 			}
 		)
 	return records
