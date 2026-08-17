@@ -62,7 +62,8 @@ Autoname über `field:workflow_name` (eindeutiger Workflow-Name).
 | `pdf_export`         | Button      | –        | exportiert das gerenderte Diagramm als PDF (`pdf_export`) |
 | `graphml_export`     | Button      | –        | exportiert das Diagramm als yEd-kompatibles GraphML (`graphml_export`) |
 | `bpmn_preview`       | HTML        | –        | Container `<div id="bpmn-preview-container">` für bpmn-js |
-| `bpmn_xml`           | Code (XML)  | –        | generiertes BPMN-XML (read-only, auto-gefüllt) |
+| `bpmn_xml`            | Code (XML)       | –       | generiertes BPMN-XML (read-only, auto-gefüllt)                  |
+| `collapsed_xml`       | Text (geklappt) | ja       | XML-Zeichenkette, im Abschnitt zusammengeklappt, print_hide=1 |
 
 Feldreihenfolge:
 `workflow_name, workflow_description, autor, prozess_owner, workflow_designer,
